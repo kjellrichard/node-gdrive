@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 
 function getDrive(auth) {
-    return google.drive({ version: 'v3', auth });
+
+    const d = google.drive({ version: 'v3', auth });
+    return d;
 }
 async function list({ auth,
     fields = 'nextPageToken, files(id, name, mimeType, webViewLink)',
@@ -24,13 +26,19 @@ async function list({ auth,
     return res.data.files;
 }
 
-async function find({ auth, name, exact = true, type = 'file' }) {
-    const q = `mimeType ${type === 'folder' ? '' : '!'}= 'application/vnd.google-apps.folder' and name ${exact ? '=' : 'contains'} '${name}'`;    
+async function find({ auth, name, exact = true, type = 'file', parent = undefined }) {
+    let qs = [
+        `mimeType ${type === 'folder' ? '' : '!'}= 'application/vnd.google-apps.folder'`,
+        `name ${exact ? '=' : 'contains'} '${name}'`
+    ]
+    if (parent)
+        qs.push(`'${parent}' in parents`)
+    const q = qs.join(' and ');
     const files = await list({ auth, q })
     return files[0];
 }
 
-async function uploadCsv({ auth, filename, data, name, folderName, removeFile=false }) {    
+async function uploadCsv({ auth, filename, data, name, folderName, removeFile = false, overwrite = false }) {
     if (!data && !filename)
         throw new Error('Either filename or data must be provided');
     if (data) {
@@ -40,9 +48,10 @@ async function uploadCsv({ auth, filename, data, name, folderName, removeFile=fa
             throw new Error('Name is missing');
         filename = '.temp';
         removeFile = true;
-        await writeCsv(data,filename,{separator:',', verbose: false})
+        await writeCsv(data, filename, { separator: ',', verbose: false })
     }
     let folder = undefined;
+    let existingFile = undefined;
     if (!name)
         name = path.basename(filename, path.extname(filename));
 
@@ -57,30 +66,39 @@ async function uploadCsv({ auth, filename, data, name, folderName, removeFile=fa
             throw new Error(`Folder not found: "${folderName}"`);
         fileMetaData.parents = [folder.id];
     }
-    
+    if (overwrite)
+        existingFile = await find({ auth, name, type: 'file', parent: folder?.id })
+
     const media = {
         mimeType: 'text/csv',
         body: fs.createReadStream(filename)
     };
-
     const drive = getDrive(auth);    
-    const res = await drive.files.create({
+    const createOrUpdateParams = {
         resource: fileMetaData,
         media,
         fields: 'id, name, webViewLink, parents',
         supportsAllDrives: true,
         corpora: 'allDrives',
         includeItemsFromAllDrives: true
+    }
+    let res;
+    if (overwrite && existingFile)
+        res = await drive.files.update({
+            ...createOrUpdateParams,
+            fileId: existingFile.id,
+        })
+    else
+        res = await drive.files.create(createOrUpdateParams)
 
-    })
     if (removeFile && filename)
         await deleteFile(filename);
     return res.data;
 }
 
-async function removeFile({auth,fileId}) {
+async function removeFile({ auth, fileId }) {
     const drive = getDrive(auth);
-    const res = await drive.files.delete({fileId,supportsAllDrives: true})
+    await drive.files.delete({ fileId, supportsAllDrives: true })
     return;
 }
 

@@ -18,7 +18,7 @@ describe('Drive',()=>{
 
     it('should find a folder',async ()=>{
         const auth = await authorize();
-        const file = await find({auth, type:'folder', name: 'a', exact: false});
+        const file = await find({auth, type:'folder', name: 'a', exact: false });
         expect(file).to.have.all.keys('id','name','webViewLink','mimeType' )
         expect(file.mimeType).to.contain('folder');
     })
@@ -39,4 +39,28 @@ describe('Drive',()=>{
         expect(removeResult).to.be.undefined;
     }).timeout(1000 * 10)
 
+    it('should override existing file', async ()=>{
+        const name = `test-${Date.now()}`;
+        const auth = await authorize();
+        const file1 = await uploadCsv({
+            auth,
+            data: [
+                {colA: 'val1A', colB: 'value1B'},
+                {colA: 'val2A', colB: 'value2B'}
+            ],
+            name
+        });
+        
+        const file2 = await uploadCsv({
+            auth,
+            data: [
+                {newColA: 'val1A', newColB: 'value1B'},
+                {newColA: 'val2A', newColB: 'value2B'}
+            ],
+            name,
+            overwrite: true
+        })
+        expect(file1.id).to.be.equal(file2.id);
+        await removeFile({auth, fileId: file1.id})
+    }).timeout(Infinity)
 })
