@@ -4,9 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 function getDrive(auth) {
-
-    const d = google.drive({ version: 'v3', auth });
-    return d;
+    return google.drive({ version: 'v3', auth });
 }
 async function list({ auth,
     fields = 'nextPageToken, files(id, name, mimeType, webViewLink)',
@@ -21,6 +19,7 @@ async function list({ auth,
         corpora,
         supportsAllDrives,
         includeItemsFromAllDrives,
+
         ...listParams
     });
     return res.data.files;
@@ -29,7 +28,8 @@ async function list({ auth,
 async function find({ auth, name, exact = true, type = 'file', parent = undefined }) {
     let qs = [
         `mimeType ${type === 'folder' ? '' : '!'}= 'application/vnd.google-apps.folder'`,
-        `name ${exact ? '=' : 'contains'} '${name}'`
+        `name ${exact ? '=' : 'contains'} '${name}'`,
+        'trashed = false'
     ]
     if (parent)
         qs.push(`'${parent}' in parents`)
@@ -67,15 +67,15 @@ async function uploadCsv({ auth, filename, data, name, folderName, removeFile = 
         fileMetaData.parents = [folder.id];
     }
     if (overwrite)
-        existingFile = await find({ auth, name, type: 'file', parent: folder?.id })
+        existingFile = await find({ auth, name, type: 'file', parent: folder?.id })  
 
     const media = {
         mimeType: 'text/csv',
         body: fs.createReadStream(filename)
     };
-    const drive = getDrive(auth);    
+    const drive = getDrive(auth);
     const createOrUpdateParams = {
-        resource: fileMetaData,
+        resource: existingFile ? undefined : fileMetaData,
         media,
         fields: 'id, name, webViewLink, parents',
         supportsAllDrives: true,
@@ -93,7 +93,8 @@ async function uploadCsv({ auth, filename, data, name, folderName, removeFile = 
 
     if (removeFile && filename)
         await deleteFile(filename);
-    return res.data;
+
+    return {...res.data,folder: folder}
 }
 
 async function removeFile({ auth, fileId }) {
