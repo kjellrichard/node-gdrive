@@ -39,7 +39,7 @@ describe('Drive',()=>{
         expect(removeResult).to.be.undefined;
     }).timeout(1000 * 10)
 
-    it('should override existing file', async ()=>{
+    it('should override existing file based on name', async ()=>{
         const name = `test-${Date.now()}`;
         const auth = await authorize();
         const file1 = await uploadCsv({
@@ -61,6 +61,34 @@ describe('Drive',()=>{
             overwrite: true
         })
         expect(file1.id).to.be.equal(file2.id);
+        await removeFile({auth, fileId: file1.id})
+    }).timeout(Infinity)
+
+    it('should overwrite existing file based on id', async ()=>{
+        const name = `test-${Date.now()}`;
+        const name2 = `name2`;
+        const auth = await authorize();
+        const file1 = await uploadCsv({
+            auth,
+            data: [
+                {colA: 'val1A', colB: 'value1B'},
+                {colA: 'val2A', colB: 'value2B'}
+            ],
+            name
+        });
+        
+        const file2 = await uploadCsv({
+            auth,
+            data: [
+                {newColA: 'val1A', newColB: 'value1B'},
+                {newColA: 'val2A', newColB: 'value2B'}
+            ],
+            fileId: file1.id,
+            name: name2,
+            overwrite: true
+        })
+        expect(file1.id).to.be.equal(file2.id);
+        expect(file2.name).to.be.equal(name2);
         await removeFile({auth, fileId: file1.id})
     }).timeout(Infinity)
 })

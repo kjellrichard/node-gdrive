@@ -2,7 +2,7 @@ const { google } = require('googleapis');
 const { writeCsv, deleteFile } = require('node-file');
 const fs = require('fs');
 const path = require('path');
-
+const tempName = '.temp';
 function getDrive(auth) {
     return google.drive({ version: 'v3', auth });
 }
@@ -38,21 +38,21 @@ async function find({ auth, name, exact = true, type = 'file', parent = undefine
     return files[0];
 }
 
-async function uploadCsv({ auth, filename, data, name, folderName, removeFile = false, overwrite = false }) {
+async function uploadCsv({ auth, filename, data, name, folderName, removeFile = false, overwrite = false, fileId }) {
     if (!data && !filename)
         throw new Error('Either filename or data must be provided');
     if (data) {
         if (filename)
             throw new Error('Both filename and data provided');
-        if (!name)
-            throw new Error('Name is missing');
-        filename = '.temp';
+        if (!name && !fileId)
+            throw new Error('Name or fileId is missing');
+        filename = tempName;
         removeFile = true;
         await writeCsv(data, filename, { separator: ',', verbose: false })
     }
     let folder = undefined;
     let existingFile = undefined;
-    if (!name)
+    if (!name )
         name = path.basename(filename, path.extname(filename));
 
     const fileMetaData = {
@@ -66,16 +66,23 @@ async function uploadCsv({ auth, filename, data, name, folderName, removeFile = 
             throw new Error(`Folder not found: "${folderName}"`);
         fileMetaData.parents = [folder.id];
     }
-    if (overwrite)
-        existingFile = await find({ auth, name, type: 'file', parent: folder?.id })  
+    if (overwrite) {
+        existingFile = fileId ? { id:fileId } : await find({ auth, name, type: 'file', parent: folder?.id })  
+    }
 
+    if ( existingFile ) {
+        delete fileMetaData.parents;
+        if ( name === tempName)
+            delete fileMetaData.name;
+    }
     const media = {
         mimeType: 'text/csv',
         body: fs.createReadStream(filename)
     };
     const drive = getDrive(auth);
     const createOrUpdateParams = {
-        resource: existingFile ? undefined : fileMetaData,
+        // resource: existingFile ? undefined : fileMetaData,
+        resource: fileMetaData,
         media,
         fields: 'id, name, webViewLink, parents',
         supportsAllDrives: true,
