@@ -8,7 +8,28 @@ const auth = authorize({
     clientSecret: CLIENT_SECRET,
     redirectUri: REDIRECT_URI
 })
+
+const fileInfo = await uploadCsv({                        
+    auth,
+    data: [
+        {colA: 'val1A', colB: 'value1B'},
+        {colA: 'val2A', colB: 'value2B'}
+    ],
+    name: 'name_of_file'
+});
+
 ```
+
+### Possible options ###
+- `auth`: Google authorizer
+- `filename` (string?): name of file to upload
+- `data` (any[]): data to upload. Should be an array of objects
+- `name` (string?): name of target file in Google Drive
+- `folderName` (string?): name of target folder in Google Drive
+- `removeFile` (boolean=false): if true, remove file `filename` after upload 
+- `overwrite` (boolean=false): if true, overwrite file specified by `fileId` or `name` and `folderName`
+- `fileId` (string?): id of file to ovewrite
+
 ### Authorize - use environment variables ###
 ```javascript
 const auth = await authorize();  
